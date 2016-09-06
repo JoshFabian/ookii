@@ -16,7 +16,7 @@
     "server": "nodemon index.js"
   },
   "author": "jcgertig <jcgertig@gmail.com>",
-  "license": "MIT",
+  "license": "Apache 2.0",
   "dependencies": {
     "babel-polyfill": "^6.13.0",
     "color-it": "^1.2.4",
