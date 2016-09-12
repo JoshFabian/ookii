@@ -22,7 +22,7 @@ npm i
 mongod
 ```
 
-Can be installed via 'homebrew'
+Can be installed via `homebrew`
 
 ### Run the app
 In another terminal other then mongo
@@ -36,3 +36,15 @@ npm start
 ```
 http://localhost:4000/
 ```
+
+## TODO
+- Work on tail
+  - Fix corners
+  - Add more colors
+  - Work on animation
+- Slow down player movement
+- Flip tiles
+- Kill Players
+- Score board
+- Name input
+- Show name above player
