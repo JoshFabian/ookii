@@ -51,10 +51,20 @@ const handleSocketConnection = function(io, db, socket) {
    * Handle move of a user
    */
   socket.on('move_user', function(userData) {
-    logger.log('Move user.', userData._id, getRoomId(room));
+    // logger.log('Move user.', userData._id, getRoomId(room));
     scope.updateUser(room, userData)
       .then(function(res) { scope.updateUsers(room); })
       .catch(logErr.bind(null, 'Move User Err'));
+  });
+
+  /*
+   * Flip Tiles (flip_tiles)
+   *
+   * Handle updates to tiles
+   */
+  socket.on('flip_tiles', function(tileData) {
+    logger.log('Flip Tiles.', tileData.user._id, tileData.tiles);
+    scope.filpTiles(room, tileData);
   });
 
   /*
@@ -76,9 +86,9 @@ const handleDbConnection = function(io, db) {
   logger.info('Connected');
   autBind(this, [
     'addUser', 'removeUser', 'updateUser', 'updateUsers', 'getRoom', 'updateMap',
-    'updateMapData',
+    'updateMapData', 'filpTiles',
   ], db, io);
-db.dropDatabase();
+// db.dropDatabase();
   io.sockets.on('connection', handleSocketConnection.bind(this, io, db));
 };
 

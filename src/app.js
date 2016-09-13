@@ -1,6 +1,6 @@
 /* global io, Promise, Phaser */
 import 'babel-polyfill';
-
+import inside from 'point-in-polygon';
 import { randOf } from './utils.js';
 
 let GAME;
@@ -19,28 +19,42 @@ const DOWN = 'down';
 const LEFT = 'left';
 const RIGHT = 'right';
 
+const createSprit = (x, y, data, frame, group) => {
+  return GAME.add.tileSprite(x * UNIT, y * UNIT, UNIT, UNIT, data, frame, group);
+};
+
+const bringToTop = (groupOrSprite) => {
+  GAME.world.bringToTop(groupOrSprite);
+};
+
 class Player {
   constructor(user) {
     this.user = user;
     this.color = user.color;
     this.x = user.x;
     this.y = user.y;
+    this.polyPoints = [];
+    this.top = null;
+    this.left = null;
+    this.right = null;
+    this.bottom = null;
+
     this.group = GAME.add.group();
     this.tail = GAME.add.group();
     this.group.add(this.tail);
-    this.sprite = GAME.add.tileSprite(this.x * UNIT, this.y * UNIT, UNIT, UNIT, 'player', 5, this.group);
+
+    this.sprite = createSprit(this.x, this.y, 'player', 5, this.group);
     GAME.camera.follow(this.sprite);
     GAME.physics.arcade.enable(this.sprite);
     this.sprite.body.collideWorldBounds = true;
+
     this.timer = null;
     this.moveingX = false;
     this.moveingY = false;
     this.hasTimer = false;
     this.direction = UP;
-  }
 
-  bringToTop() {
-    GAME.world.bringToTop(this.group);
+    this.bringToTop = bringToTop.bind(this, this.group);
   }
 
   setDirection(dir) {
@@ -65,7 +79,7 @@ class Player {
   }
 
   sendUpdate() {
-    new Promise(() => {
+    return new Promise(() => {
       this.user.x = this.x;
       this.user.y = this.y;
       SOCKET.emit('move_user', this.user);
@@ -74,26 +88,47 @@ class Player {
 
   addTailSection(x, y, dir) {
     let tail;
-    if (dir === UP) {
-      tail = GAME.add.tileSprite((x + 1) * UNIT, (y + 1) * UNIT, UNIT, UNIT, 'verTails', 0, this.tail);
+    if (dir === UP || dir === LEFT) {
+      const set = (dir === UP ? 'verTails' : 'horTails');
+      tail = createSprit((x + 1), (y + 1), set, 0, this.tail);
       tail.rotation = Math.PI;
     }
-    if (dir === DOWN) {
-      tail = GAME.add.tileSprite(x * UNIT, y * UNIT, UNIT, UNIT, 'verTails', 0, this.tail);
-    }
-    if (dir === LEFT) {
-      tail = GAME.add.tileSprite((x + 1) * UNIT, (y + 1) * UNIT, UNIT, UNIT, 'horTails', 0, this.tail);
-      tail.rotation = Math.PI;
-    }
-    if (dir === RIGHT) {
-      tail = GAME.add.tileSprite(x * UNIT, y * UNIT, UNIT, UNIT, 'horTails', 0, this.tail);
+    if (dir === DOWN || dir === RIGHT) {
+      const set = (dir === DOWN ? 'verTails' : 'horTails');
+      tail = createSprit(x, y, set, 0, this.tail);
     }
     tail.animations.add('move');
     tail.animations.play('move', 20, true);
+    this.polyPoints.push([ x, y ]);
+
+    if (this.top === null || y < this.top) { this.top = y; }
+    if (this.bottom === null || y > this.bottom) { this.bottom = y; }
+    if (this.left === null || x < this.left) { this.left = x; }
+    if (this.right === null || x > this.right) { this.right = x; }
+  }
+
+  flipTiles() {
+    if (this.top !== null && this.bottom !== null && this.left !== null && this.right !== null) {
+      const pointsInPoly = [];
+      for (let y = this.top; y <= this.bottom; y++) {
+        for (let x = this.left; x <= this.right; x++) {
+          if (!this.userTile(x, y) && inside([x, y], this.polyPoints)) {
+            pointsInPoly.push([x, y]);
+          }
+        }
+      }
+      SOCKET.emit('flip_tiles', { user: this.user, tiles: pointsInPoly });
+    }
+    this.top = null;
+    this.left = null;
+    this.right = null;
+    this.bottom = null;
+    this.polyPoints = [];
   }
 
   clearTail() {
     this.tail.removeAll();
+    this.flipTiles();
   }
 
   userTile(x, y) {
@@ -103,62 +138,48 @@ class Player {
     return false;
   }
 
-  moveX(change) {
+  _moveAttr(baseAttr, change) {
     if (typeof TILES === 'undefined') { return null; }
+    const attr = baseAttr.toString().toLowerCase();
+    const moveing = `moveing${attr.toUpperCase()}`;
     const dir = this.direction;
+
     return setTimeout(() => {
-      if (!this.moveingX) {
-        this.moveingX = true;
-        const oldX = this.x;
+      if (!this[moveing]) {
+        this[moveing] = true;
+        const old = {
+          x: this.x,
+          y: this.y,
+        };
         let madeChange = false;
-        if (oldX + change >= 0 && oldX + change < SIZE) {
+        if (old[attr] + change >= 0 && old[attr] + change < SIZE) {
           madeChange = true;
-          this.x += change;
-          this.sprite.x = this.x * UNIT;
+          this[attr] += change;
+          this.sprite[attr] = this[attr] * UNIT;
           this.sendUpdate();
         }
+
         setTimeout(() => {
           if (madeChange) {
-            if (!this.userTile(oldX, this.y)) {
-              this.addTailSection(oldX, this.y, dir);
+            if (!this.userTile(old.x, old.y)) {
+              this.addTailSection(old.x, old.y, dir);
             }
             if (this.userTile(this.x, this.y)) {
               this.clearTail();
             }
           }
-          this.moveingX = false;
+          this[moveing] = false;
         }, 100);
       }
     }, 20);
   }
 
+  moveX(change) {
+    return this._moveAttr('x', change);
+  }
+
   moveY(change) {
-    if (typeof TILES === 'undefined') { return null; }
-    const dir = this.direction;
-    return setTimeout(() => {
-      if (!this.moveingY) {
-        this.moveingY = true;
-        const oldY = this.y;
-        let madeChange = false;
-        if (oldY + change >= 0 && oldY + change < SIZE) {
-          madeChange = true;
-          this.y += change;
-          this.sprite.y = this.y * UNIT;
-          this.sendUpdate();
-        }
-        setTimeout(() => {
-          if (madeChange) {
-            if (!this.userTile(this.x, oldY)) {
-              this.addTailSection(this.x, oldY, dir);
-            }
-            if (this.userTile(this.x, this.y)) {
-              this.clearTail();
-            }
-          }
-          this.moveingY = false;
-        }, 100);
-      }
-    }, 20);
+    return this._moveAttr('y', change);
   }
 }
 
@@ -168,11 +189,9 @@ class Enemy {
     this.x = x;
     this.y = y;
     this.group = GAME.add.group();
-    this.sprite = GAME.add.tileSprite(x * UNIT, y * UNIT, UNIT, UNIT, 'player', 1, this.group);
-  }
+    this.sprite = createSprit(x, y, 'player', 1, this.group);
 
-  bringToTop() {
-    GAME.world.bringToTop(this.group);
+    this.bringToTop = bringToTop.bind(this, this.group);
   }
 
   animateTo(x, y) {
@@ -230,6 +249,7 @@ class Game {
       });
 
       SOCKET.on(`map_${roomId}`, ({ tiles, csv }) => {
+        // console.log('current map');
         // if (typeof TILES === 'undefined') {
         TILES = tiles;
         CSV = csv;
@@ -253,6 +273,15 @@ class Game {
           }
         }
         // }
+      });
+
+      SOCKET.on(`update_map_${roomId}`, ({ tiles, newTiles }) => {
+        TILES = tiles;
+        new Promise(() => {
+          for (const tile of newTiles) {
+            MAP.putTile(tile.color, tile.x, tile.y);
+          }
+        });
       });
     });
 

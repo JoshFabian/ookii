@@ -39,11 +39,12 @@ http://localhost:4000/
 
 ## TODO
 - Work on tail
-  - Fix corners
+  - ~~Fix corners~~
   - Add more colors
   - Work on animation
 - Slow down player movement
-- Flip tiles
+- ~~Flip tiles~~
+  - Work on tiles chosen to flip algo
 - Kill Players
 - Score board
 - Name input

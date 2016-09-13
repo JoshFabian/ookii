@@ -1,39 +1,5 @@
-export const spritIndexOffest = function(x, y, newX, newY) { // Index diffrence for sprite
-  if (x < newX) {
-    return 18;
-  } else if (x > newX) {
-    return 9;
-  } else if (y > newY) {
-    return 27;
-  }
-  return 0;
-};
-
-export const spritIndexOffestDir = function(dir) { // Index diffrence for sprite
-  if (dir === 2) {
-    return 18;
-  } else if (dir === 1) {
-    return 9;
-  } else if (dir === 3) {
-    return 27;
-  }
-  return 0;
-};
-
 export const randOf = function(num) {
   return Math.floor(Math.random() * num);
-};
-
-export const numDiff = function(a, b) {
-  return a - b;
-};
-
-export const adjustX = function(baseX, realX, pix, base) {
-  return realX === baseX ? base : (base + ((realX - baseX) * pix));
-};
-
-export const adjustY = function(baseY, realY, pix, base) {
-  return realY === baseY ? base : (base + ((realY - baseY) * pix));
 };
 
 export const dataURItoBlob = function(dataURI) {

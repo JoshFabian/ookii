@@ -85,7 +85,7 @@ const getUsers = function(db, roomId) {
  * Update room with current users
  */
 const updateUsers = function(db, io, room) {
-  logger.info('Getting users.');
+  // logger.info('Getting users.');
   getUsers(db, getId(room))
     .then(function(res) { io.emit(`users_${getId(room)}`, res); })
     .catch(logErr.bind(null, 'Update Users Err'));
@@ -112,50 +112,6 @@ const getMap = function(db, roomId) {
     maps
       .find({ room: { $eq: ObjectId(roomId) } }) // eslint-disable-line babel/new-cap
       .toArray(doPromise.bind(null, resolve, reject));
-  });
-};
-
-/*
- * Create one room
- */
-const createRoom = function(db) {
-  const rooms = db.collection('rooms');
-  return new Promise(function(resolve, reject) {
-    rooms.insertOne(
-      { count: 1 },
-      doPromise.bind(null, resolve, reject)
-    );
-  });
-};
-
-/*
- * Build Tiles for Map
- */
-const buildTiles = function(width, height, createTile) {
-  const tiles = [];
-  for (let y = 0; y < height; y++) {
-    tiles[y] = [];
-    for (let x = 0; x < width; x++) {
-      tiles[y][x] = createTile(x, y);
-    }
-  }
-  return tiles;
-};
-
-/*
- * Create one map
- */
-const createMap = function(db, room) {
-  const maps = db.collection('maps');
-  return new Promise(function(resolve, reject) {
-    maps.insertOne(
-      { room: getId(room), tiles: buildTiles(200, 200, (x, y) => ({
-        user: null,
-        color: 0,
-        x, y,
-      })) },
-      doPromise.bind(null, resolve, reject)
-    );
   });
 };
 
@@ -202,18 +158,85 @@ const updateMap = function(db, io, room, user, tiles) {
   });
 };
 
-const devPix = function(num) {
-  return num / 32;
+const filpTiles = function(db, io, room, { user, tiles }) {
+  logger.log('Flipping tiles.');
+  getMap(db, getId(room))
+    .then(function(res) {
+      const map = res[0];
+      const updatedTiles = [];
+      let newTiles = map.tiles;
+      for (const tile of tiles) {
+        const { newTileSet, newTile } = flipTile(newTiles, tile[0], tile[1], user);
+        updatedTiles.push(newTile);
+        newTiles = newTileSet;
+      }
+      logger.log('New Tiles');
+      updateMap(db, io, room, user, newTiles)
+        .then((result) => {
+          io.emit(`update_map_${getId(room)}`, { tiles: result.value.tiles, newTiles: updatedTiles });
+        })
+        .catch(logErr.bind(null, 'Update Map Err'));
+    })
+    .catch(logErr.bind(null, 'Get Room Err'));
+};
+
+/*
+ * Create one room
+ */
+const createRoom = function(db) {
+  const rooms = db.collection('rooms');
+  return new Promise(function(resolve, reject) {
+    rooms.insertOne(
+      { count: 1 },
+      doPromise.bind(null, resolve, reject)
+    );
+  });
+};
+
+/*
+ * Build Tiles for Map
+ */
+const buildTiles = function(width, height, createTile) {
+  const tiles = [];
+  for (let y = 0; y < height; y++) {
+    tiles[y] = [];
+    for (let x = 0; x < width; x++) {
+      tiles[y][x] = createTile(x, y);
+    }
+  }
+  return tiles;
+};
+
+/*
+ * Create one map
+ */
+const createMap = function(db, room) {
+  const maps = db.collection('maps');
+  return new Promise(function(resolve, reject) {
+    maps.insertOne(
+      { room: getId(room), tiles: buildTiles(200, 200, (x, y) => ({
+        user: null,
+        color: 0,
+        x, y,
+      })) },
+      doPromise.bind(null, resolve, reject)
+    );
+  });
 };
 
 const getTile = function(user, color, x, y) {
   return { user: getId(user), color, x, y };
 };
 
+const flipTile = function(tiles, x, y, user) {
+  const newTile = getTile(user, user.color, x, y);
+  tiles[y][x] = newTile;
+  return { newTileSet: tiles, newTile };
+};
+
 const flip3x3 = function(map, user) {
   const { tiles } = map;
   const { x, y, color } = user;
-  console.log(user, color);
 
   tiles[y][x] = getTile(user, color, x, y);
 
@@ -283,6 +306,7 @@ module.exports = {
   getRoom,
   setupDb,
   flip3x3,
+  filpTiles,
   updateMap,
   createMap,
   removeUser,
