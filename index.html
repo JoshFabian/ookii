@@ -3,9 +3,35 @@
   <head>
     <title>Real time game</title>
     <script src="/public/phaser.js"></script>
+    <style>
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+
+      .body {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2;
+        background-color: white;
+      }
+
+      .body.hidden {
+        display: none;
+      }
+    </style>
   </head>
   <body class="main" style="margin:0; padding: 0;">
     <script src="/socket.io/socket.io.js"></script>
     <script src="/dist/bundle.js"></script>
+    <div class="body">
+      <input id="name" type="text"></input>
+      <button id="startButton">Start</button>
+    </div>
   </body>
 </html>

@@ -2,6 +2,7 @@
 import 'babel-polyfill';
 import inside from 'point-in-polygon';
 import { randOf } from './utils.js';
+import { isUndefined, find } from 'lodash';
 
 let GAME;
 let SOCKET;
@@ -11,6 +12,8 @@ let CSV;
 let MAP;
 let LAYER;
 
+let TAIL_DATA = [];
+
 const SIZE = 200;
 const UNIT = 32;
 
@@ -18,6 +21,18 @@ const UP = 'up';
 const DOWN = 'down';
 const LEFT = 'left';
 const RIGHT = 'right';
+
+const addClass = (elm, klass) => {
+  elm.className += ` ${klass}`;
+};
+
+const removeClass = (elm, klass) => {
+  elm.className = elm.className.replace(klass, '').trim();
+};
+
+const killPlayer = (player, byPlayer) => {
+  SOCKET.emit('kill_user', { player, byPlayer });
+};
 
 const createSprit = (x, y, data, frame, group) => {
   return GAME.add.tileSprite(x * UNIT, y * UNIT, UNIT, UNIT, data, frame, group);
@@ -38,6 +53,7 @@ class Player {
     this.left = null;
     this.right = null;
     this.bottom = null;
+    this.user.tailData = '';
 
     this.group = GAME.add.group();
     this.tail = GAME.add.group();
@@ -47,6 +63,12 @@ class Player {
     GAME.camera.follow(this.sprite);
     GAME.physics.arcade.enable(this.sprite);
     this.sprite.body.collideWorldBounds = true;
+
+    let style = { font: 'bold 12px Arial', fill: '#ffffff', align: 'center' };
+    this.label = GAME.add.text(0, -10, this.user.name, style);
+    this.label.anchor.set(0);
+    this.label.x = (UNIT / 2) - (this.label.width / 2);
+    this.sprite.addChild(this.label);
 
     this.timer = null;
     this.moveingX = false;
@@ -58,8 +80,19 @@ class Player {
     this.bringToTop = bringToTop.bind(this, this.group);
   }
 
+  isMe(player) {
+    return this.user._id === player._id;
+  }
+
   setDirection(dir) {
     this.hasTimer = false;
+    const oldDir = this.directionOld;
+    if ((oldDir === LEFT && dir === RIGHT) || (oldDir === RIGHT && dir === LEFT)) {
+      return;
+    }
+    if ((oldDir === UP && dir === DOWN) || (oldDir === DOWN && dir === UP)) {
+      return;
+    }
     this.directionOld = this.direction;
     this.direction = dir;
   }
@@ -84,14 +117,13 @@ class Player {
     return new Promise(() => {
       this.user.x = this.x;
       this.user.y = this.y;
-      SOCKET.emit('move_user', this.user);
+      SOCKET.emit('update_user', this.user);
     });
   }
 
   addTailSection(x, y, dir, oldDir) {
     let set = 'verTails';
     let tail;
-    console.log(this.color - 1);
     if (dir !== oldDir) {
       set = 'corTails';
       let angle = 0;
@@ -116,8 +148,8 @@ class Player {
         tail.angle = 90;
       }
     }
-    // tail.animations.add('move');
-    // tail.animations.play('move', 20, true);
+    this.user.tailData += [ x, y ].join(',') + ';';
+    this.sendUpdate();
     this.polyPoints.push([ x, y ]);
 
     if (this.top === null || y < this.top) { this.top = y; }
@@ -147,6 +179,8 @@ class Player {
 
   clearTail() {
     this.tail.removeAll();
+    this.user.tailData = '';
+    this.sendUpdate();
     this.flipTiles();
   }
 
@@ -181,6 +215,10 @@ class Player {
 
         setTimeout(() => {
           if (madeChange) {
+            const tailHit = find(TAIL_DATA, { x: this.x, y: this.y });
+            if (!isUndefined(tailHit)) {
+              killPlayer(tailHit.user, this.user);
+            }
             if (!this.userTile(old.x, old.y)) {
               this.addTailSection(old.x, old.y, dir, oldDir);
             }
@@ -204,12 +242,18 @@ class Player {
 }
 
 class Enemy {
-  constructor({ x, y, user }) {
+  constructor(user) {
     this.user = user;
-    this.x = x;
-    this.y = y;
+    this.x = user.x;
+    this.y = user.y;
     this.group = GAME.add.group();
-    this.sprite = createSprit(x, y, 'player', 1, this.group);
+    this.sprite = createSprit(this.x, this.y, 'player', 1, this.group);
+
+    let style = { font: 'bold 12px Arial', fill: '#ffffff', align: 'center' };
+    this.label = GAME.add.text(0, -10, this.user.name, style);
+    this.label.anchor.set(0);
+    this.label.x = (UNIT / 2) - (this.label.width / 2);
+    this.sprite.addChild(this.label);
 
     this.bringToTop = bringToTop.bind(this, this.group);
   }
@@ -223,8 +267,9 @@ class Enemy {
 }
 
 class Game {
-  constructor() {
+  constructor(name) {
     this.enemies = {};
+    this.userName = name;
   }
 
   preload() {
@@ -246,8 +291,9 @@ class Game {
     GAME.world.resize(SIZE * UNIT, SIZE * UNIT);
 
     SOCKET.emit('join', {
-      name: 'test' + Date.now(),
+      name: this.userName,
       color: randOf(6) + 1,
+      tailData: '',
       x: randOf(SIZE),
       y: randOf(SIZE),
     });
@@ -255,6 +301,20 @@ class Game {
     SOCKET.on('me', (user, roomId) => {
       CURRENT_USER = user;
       this.player = new Player(CURRENT_USER);
+
+      SOCKET.on(`tails_${roomId}`, (tailData) => {
+        TAIL_DATA = tailData;
+      });
+
+      SOCKET.on(`killed_player_${roomId}`, (player) => {
+        if (this.player.isMe(player)) {
+          SOCKET.disconnect();
+          GAME.destroy();
+          GAME = null;
+          removeClass(document.querySelector('.body'), 'hidden');
+          alert('You were killed');
+        }
+      });
 
       SOCKET.on(`users_${roomId}`, (users) => {
         for (const enemy of users.filter((u) => (u._id !== CURRENT_USER._id))) {
@@ -329,4 +389,9 @@ class Game {
   }
 }
 
-GAME = new Phaser.Game('100%', '100%', Phaser.CANVAS, 'phaser-example', new Game());
+window.onload = () => {
+  document.getElementById('startButton').addEventListener('click', () => {
+    addClass(document.querySelector('.body'), 'hidden');
+    GAME = new Phaser.Game('100%', '100%', Phaser.CANVAS, 'phaser-example', new Game(document.getElementById('name').value));
+  });
+};

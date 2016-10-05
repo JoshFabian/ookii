@@ -19,7 +19,7 @@ const handleSocketConnection = function(io, db, socket) {
   let room;
 
   /*
-   * Join (move_user)
+   * Join (join)
    *
    * Handle join. Get room, add user to room and update users.
    */
@@ -48,14 +48,27 @@ const handleSocketConnection = function(io, db, socket) {
   });
 
   /*
-   * Move User (move_user)
+   * Update User (update_user)
    *
    * Handle move of a user
    */
-  socket.on('move_user', function(userData) {
-    // logger.log('Move user.', userData._id, getRoomId(room));
+  socket.on('update_user', function(userData) {
     scope.updateUser(room, userData)
       .then(function(res) { scope.updateUsers(room); })
+      .catch(logErr.bind(null, 'Move User Err'));
+  });
+
+  /*
+   * Kill User (kill_user)
+   *
+   * Handle killing of a user
+   */
+  socket.on('kill_user', function({ player, byPlayer }) {
+    scope.removeUser(room, player)
+      .then(function(res) {
+        io.emit(`killed_player_${getRoomId(room)}`, player);
+        scope.updateUsers(room);
+      })
       .catch(logErr.bind(null, 'Move User Err'));
   });
 

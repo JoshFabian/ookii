@@ -65,7 +65,7 @@ const updateUser = function(db, io, room, data) {
     users.findAndModify(
       { _id: { $eq: ObjectId(data._id) } }, // eslint-disable-line babel/new-cap
       [['_id', 'asc']],
-      { $set: { x: data.x, y: data.y } },
+      { $set: { x: data.x, y: data.y, tailData: data.tailData } },
       doPromise.bind(null, resolve, reject)
     );
   });
@@ -87,7 +87,21 @@ const getUsers = function(db, roomId) {
 const updateUsers = function(db, io, room) {
   // logger.info('Getting users.');
   getUsers(db, getId(room))
-    .then(function(res) { io.emit(`users_${getId(room)}`, res); })
+    .then(function(res) {
+      io.emit(`users_${getId(room)}`, res);
+      let tailData = [];
+      for (const user of res) {
+        for (const point of user.tailData.split(';')) {
+          let split = point.split(',');
+          tailData.push({
+            x: parseInt(split[0], 10),
+            y: parseInt(split[1], 10),
+            user,
+          });
+        }
+      }
+      io.emit(`tails_${getId(room)}`, tailData);
+    })
     .catch(logErr.bind(null, 'Update Users Err'));
 };
 
@@ -178,6 +192,10 @@ const filpTiles = function(db, io, room, { user, tiles }) {
         .catch(logErr.bind(null, 'Update Map Err'));
     })
     .catch(logErr.bind(null, 'Get Room Err'));
+};
+
+const killUser = function(db, io, room, { player }) {
+
 };
 
 /*
@@ -310,6 +328,7 @@ module.exports = {
   getRoom,
   setupDb,
   flip3x3,
+  killUser,
   filpTiles,
   updateMap,
   createMap,
