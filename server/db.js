@@ -229,7 +229,8 @@ const getTile = function(user, color, x, y) {
 };
 
 const flipTile = function(tiles, x, y, user) {
-  const newTile = getTile(user, user.color, x, y);
+  const color = (user.color - 1) * 10;
+  const newTile = getTile(user, color === 0 ? 1 : color, x, y);
   tiles[y][x] = newTile;
   return { newTileSet: tiles, newTile };
 };
@@ -238,17 +239,20 @@ const flip3x3 = function(map, user) {
   const { tiles } = map;
   const { x, y, color } = user;
 
-  tiles[y][x] = getTile(user, color, x, y);
+  let colorIndex = (color - 1) * 10;
+  colorIndex = colorIndex === 0 ? 1 : colorIndex;
 
-  tiles[y + 1][x] = getTile(user, color, x, y + 1);
-  tiles[y - 1][x] = getTile(user, color, x, y - 1);
-  tiles[y][x + 1] = getTile(user, color, x + 1, y);
-  tiles[y][x - 1] = getTile(user, color, x - 1, y);
+  tiles[y][x] = getTile(user, colorIndex, x, y);
 
-  tiles[y - 1][x + 1] = getTile(user, color, x + 1, y - 1);
-  tiles[y + 1][x + 1] = getTile(user, color, x + 1, y + 1);
-  tiles[y + 1][x - 1] = getTile(user, color, x - 1, y + 1);
-  tiles[y - 1][x - 1] = getTile(user, color, x - 1, y - 1);
+  tiles[y + 1][x] = getTile(user, colorIndex, x, y + 1);
+  tiles[y - 1][x] = getTile(user, colorIndex, x, y - 1);
+  tiles[y][x + 1] = getTile(user, colorIndex, x + 1, y);
+  tiles[y][x - 1] = getTile(user, colorIndex, x - 1, y);
+
+  tiles[y - 1][x + 1] = getTile(user, colorIndex, x + 1, y - 1);
+  tiles[y + 1][x + 1] = getTile(user, colorIndex, x + 1, y + 1);
+  tiles[y + 1][x - 1] = getTile(user, colorIndex, x - 1, y + 1);
+  tiles[y - 1][x - 1] = getTile(user, colorIndex, x - 1, y - 1);
 
   return tiles;
 };

@@ -53,12 +53,14 @@ class Player {
     this.moveingY = false;
     this.hasTimer = false;
     this.direction = UP;
+    this.directionOld = UP;
 
     this.bringToTop = bringToTop.bind(this, this.group);
   }
 
   setDirection(dir) {
     this.hasTimer = false;
+    this.directionOld = this.direction;
     this.direction = dir;
   }
 
@@ -86,19 +88,36 @@ class Player {
     });
   }
 
-  addTailSection(x, y, dir) {
+  addTailSection(x, y, dir, oldDir) {
+    let set = 'verTails';
     let tail;
-    if (dir === UP || dir === LEFT) {
-      const set = (dir === UP ? 'verTails' : 'horTails');
-      tail = createSprit((x + 1), (y + 1), set, 0, this.tail);
-      tail.rotation = Math.PI;
+    console.log(this.color - 1);
+    if (dir !== oldDir) {
+      set = 'corTails';
+      let angle = 0;
+      let xp = x;
+      let yp = y;
+      if ((dir === LEFT && oldDir === DOWN) || (dir === UP && oldDir === RIGHT)) {
+        angle = 90;
+        xp = x + 1;
+      } else if ((dir === RIGHT && oldDir === DOWN) || (dir === UP && oldDir === LEFT)) {
+        angle = -180;
+        yp = y + 1;
+        xp = x + 1;
+      } else if ((dir === RIGHT && oldDir === UP) || (dir === DOWN && oldDir === LEFT)) {
+        angle = -90;
+        yp = y + 1;
+      }
+      tail = createSprit(xp, yp, set, this.color - 1, this.tail);
+      tail.angle = angle;
+    } else {
+      tail = createSprit((dir === LEFT || dir === RIGHT) ? x + 1 : x, y, set, this.color - 1, this.tail);
+      if (dir === LEFT || dir === RIGHT) {
+        tail.angle = 90;
+      }
     }
-    if (dir === DOWN || dir === RIGHT) {
-      const set = (dir === DOWN ? 'verTails' : 'horTails');
-      tail = createSprit(x, y, set, 0, this.tail);
-    }
-    tail.animations.add('move');
-    tail.animations.play('move', 20, true);
+    // tail.animations.add('move');
+    // tail.animations.play('move', 20, true);
     this.polyPoints.push([ x, y ]);
 
     if (this.top === null || y < this.top) { this.top = y; }
@@ -143,6 +162,7 @@ class Player {
     const attr = baseAttr.toString().toLowerCase();
     const moveing = `moveing${attr.toUpperCase()}`;
     const dir = this.direction;
+    const oldDir = this.directionOld;
 
     return setTimeout(() => {
       if (!this[moveing]) {
@@ -162,7 +182,7 @@ class Player {
         setTimeout(() => {
           if (madeChange) {
             if (!this.userTile(old.x, old.y)) {
-              this.addTailSection(old.x, old.y, dir);
+              this.addTailSection(old.x, old.y, dir, oldDir);
             }
             if (this.userTile(this.x, this.y)) {
               this.clearTail();
@@ -214,7 +234,8 @@ class Game {
     GAME.load.spritesheet('colors', '/public/colors.png', UNIT, UNIT, 51);
     GAME.load.spritesheet('tails', '/public/tails.png', UNIT, UNIT, 51);
     GAME.load.spritesheet('horTails', '/public/hor.png', UNIT, UNIT, 3);
-    GAME.load.spritesheet('verTails', '/public/ver.png', UNIT, UNIT, 3);
+    GAME.load.spritesheet('verTails', '/public/verTail.png', UNIT, UNIT, 6);
+    GAME.load.spritesheet('corTails', '/public/corTail.png', UNIT, UNIT, 6);
 
     SOCKET = io.connect('http://localhost:4000');
   }
@@ -226,7 +247,7 @@ class Game {
 
     SOCKET.emit('join', {
       name: 'test' + Date.now(),
-      color: randOf(48) + 1,
+      color: randOf(6) + 1,
       x: randOf(SIZE),
       y: randOf(SIZE),
     });

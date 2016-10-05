@@ -1,8 +1,10 @@
 const logger = require('./log.js');
 const dbUtils = require('./db.js');
+const lodash = require('lodash');
 const {
   setupDb, getRoomId, updateRoomCount, logErr, flip3x3,
 } = dbUtils;
+const { omit } = lodash;
 
 const scope = {};
 
@@ -25,7 +27,7 @@ const handleSocketConnection = function(io, db, socket) {
     scope.getRoom()
       .then(function(data) {
         room = data;
-        logger.log('Joining room.', room);
+        logger.log('Joining room.', omit(room, ['map']));
         scope.addUser(room, userData)
           .then(function({ ops }) {
             user = ops[0];
@@ -63,7 +65,7 @@ const handleSocketConnection = function(io, db, socket) {
    * Handle updates to tiles
    */
   socket.on('flip_tiles', function(tileData) {
-    logger.log('Flip Tiles.', tileData.user._id, tileData.tiles);
+    logger.log('Flip Tiles.', tileData.user._id, tileData.tiles.length);
     scope.filpTiles(room, tileData);
   });
 
@@ -73,7 +75,7 @@ const handleSocketConnection = function(io, db, socket) {
    * Handle removal of user and clean up
    */
   socket.on('disconnect', function() {
-    logger.log('Disconnect.', room, user);
+    logger.log('Disconnect.', omit(room, ['map']), user);
     updateRoomCount(db, room, -1)
       .catch(logErr.bind(null, 'Could not decrement count.'));
     scope.removeUser(room, user)
